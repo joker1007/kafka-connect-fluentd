@@ -101,22 +101,39 @@ public class MessagePackConverver {
             case BINARY:
                 return new SchemaAndValue(Schema.BYTES_SCHEMA, value.asBinaryValue().asByteArray());
             case MAP: {
-                SchemaBuilder builder = SchemaBuilder.struct().name(name);
-                Map<Value, Value> map = value.asMapValue().map();
-                Map<String, SchemaAndValue> fields = new HashMap<>();
-                map.forEach((k, v) -> {
-                    String n = k.asStringValue().asString();
-                    fields.put(n, convert(n, v));
-                });
-                fields.forEach((k, v) -> {
-                    builder.field(k, v.schema());
-                });
-                Schema schema = builder.build();
-                Struct struct = new Struct(schema);
-                fields.forEach((k, v) -> {
-                    struct.put(k, v.value());
-                });
-                return new SchemaAndValue(schema, struct);
+                if (config.getFluentdSchemasMapField() != null && config.getFluentdSchemasMapField().contains(name)) {
+                    Map<Value, Value> map = value.asMapValue().map();
+                    Map<String, SchemaAndValue> fields = new HashMap<>();
+                    map.forEach((k, v) -> {
+                        String n = k.asStringValue().asString();
+                        fields.put(n, convert(n, v));
+                    });
+                    SchemaAndValue schemaAndValue = fields.values().iterator().next();
+                    Schema valueSchema = schemaAndValue.schema();
+                    Map<String, Object> newMap = new HashMap<>();
+                    fields.forEach((k, v) -> {
+                        newMap.put(k, v.value());
+                    });
+                    Schema schema = SchemaBuilder.map(Schema.STRING_SCHEMA, valueSchema).name(name).build();
+                    return new SchemaAndValue(schema, newMap);
+                } else {
+                    SchemaBuilder builder = SchemaBuilder.struct().name(name);
+                    Map<Value, Value> map = value.asMapValue().map();
+                    Map<String, SchemaAndValue> fields = new HashMap<>();
+                    map.forEach((k, v) -> {
+                        String n = k.asStringValue().asString();
+                        fields.put(n, convert(n, v));
+                    });
+                    fields.forEach((k, v) -> {
+                        builder.field(k, v.schema());
+                    });
+                    Schema schema = builder.build();
+                    Struct struct = new Struct(schema);
+                    fields.forEach((k, v) -> {
+                        struct.put(k, v.value());
+                    });
+                    return new SchemaAndValue(schema, struct);
+                }
             }
             case ARRAY: {
                 List<Value> array = value.asArrayValue().list();
