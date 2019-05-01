@@ -28,17 +28,13 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
-public class MessagePackConverver {
-    static final Logger log = LoggerFactory.getLogger(MessagePackConverver.class);
+public class MessagePackConverter {
+    static final Logger log = LoggerFactory.getLogger(MessagePackConverter.class);
     private final FluentdSourceConnectorConfig config;
 
-    public MessagePackConverver(final FluentdSourceConnectorConfig config) {
+    public MessagePackConverter(final FluentdSourceConnectorConfig config) {
         this.config = config;
     }
 
@@ -103,14 +99,14 @@ public class MessagePackConverver {
             case MAP: {
                 if (config.getFluentdSchemasMapField() != null && config.getFluentdSchemasMapField().contains(name)) {
                     Map<Value, Value> map = value.asMapValue().map();
-                    Map<String, SchemaAndValue> fields = new HashMap<>();
+                    Map<String, SchemaAndValue> fields = new TreeMap<>();
                     map.forEach((k, v) -> {
                         String n = k.asStringValue().asString();
                         fields.put(n, convert(n, v));
                     });
                     SchemaAndValue schemaAndValue = fields.values().iterator().next();
                     Schema valueSchema = schemaAndValue.schema();
-                    Map<String, Object> newMap = new HashMap<>();
+                    Map<String, Object> newMap = new TreeMap<>();
                     fields.forEach((k, v) -> {
                         newMap.put(k, v.value());
                     });
@@ -119,13 +115,13 @@ public class MessagePackConverver {
                 } else {
                     SchemaBuilder builder = SchemaBuilder.struct().name(name);
                     Map<Value, Value> map = value.asMapValue().map();
-                    Map<String, SchemaAndValue> fields = new HashMap<>();
+                    Map<String, SchemaAndValue> fields = new TreeMap<>();
                     map.forEach((k, v) -> {
                         String n = k.asStringValue().asString();
                         fields.put(n, convert(n, v));
                     });
-                    fields.keySet().stream().sorted().forEach((k) -> {
-                        builder.field(k, fields.get(k).schema());
+                    fields.forEach((k, v) -> {
+                        builder.field(k, v.schema());
                     });
                     Schema schema = builder.build();
                     Struct struct = new Struct(schema);
