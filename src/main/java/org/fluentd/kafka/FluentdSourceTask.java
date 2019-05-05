@@ -80,6 +80,7 @@ public class FluentdSourceTask extends SourceTask {
     @Override
     public void start(Map<String, String> properties) {
         config = new FluentdSourceConnectorConfig(properties);
+        log.info("Start task of Fluentd connector {}", config);
         MessagePackConverter converter = new MessagePackConverter(config);
         ForwardCallback callback = ForwardCallback.of(stream -> {
             if (config.getFluentdCounterEnabled()) {
@@ -133,10 +134,12 @@ public class FluentdSourceTask extends SourceTask {
             }
 
             server = builder.build();
+            log.info("Build influent server {}", server);
         } catch (FluentdConnectorConfigError ex) {
             throw new ConnectException(ex);
         }
         server.start();
+        log.info("Start influent server {}", server);
         if (config.getFluentdCounterEnabled()) {
             new Thread(reporter).start();
         }

@@ -45,6 +45,7 @@ public class FluentdSourceConnector extends SourceConnector {
     @Override
     public void start(Map<String, String> properties) {
         this.properties = properties;
+        log.info("Starting Fluentd connector {}", properties);
     }
 
     @Override
