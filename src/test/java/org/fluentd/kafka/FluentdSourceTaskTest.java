@@ -16,6 +16,7 @@
 
 package org.fluentd.kafka;
 
+import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.junit.After;
 import org.junit.Before;
@@ -32,6 +33,7 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.IsCollectionContaining.hasItems;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
 public class FluentdSourceTaskTest {
@@ -68,9 +70,10 @@ public class FluentdSourceTaskTest {
         List<SourceRecord> sourceRecords = task.poll();
         assertEquals(1, sourceRecords.size());
         SourceRecord sourceRecord = sourceRecords.get(0);
+        Struct sourceRecordValue = (Struct) sourceRecord.value();
         assertNull(sourceRecord.key());
         assertNull(sourceRecord.valueSchema());
-        assertEquals(record, sourceRecord.value());
+        assertEquals(record.get("message"), sourceRecordValue.getString("message"));
     }
 
     @Test
@@ -86,9 +89,11 @@ public class FluentdSourceTaskTest {
         List<SourceRecord> sourceRecords = task.poll();
         assertEquals(1, sourceRecords.size());
         SourceRecord sourceRecord = sourceRecords.get(0);
+        Struct sourceRecordValue = (Struct) sourceRecord.value();
         assertNull(sourceRecord.key());
         assertNull(sourceRecord.valueSchema());
-        assertEquals(record, sourceRecord.value());
+        assertNotNull(sourceRecordValue.schema().field("message"));
+        assertNull(sourceRecordValue.get("message"));
     }
 
     @Test
@@ -112,9 +117,10 @@ public class FluentdSourceTaskTest {
         assertEquals(1, sourceRecords.size());
         SourceRecord sourceRecord = sourceRecords.get(0);
         assertNull(sourceRecord.key());
-        Map<String, Object> value = (Map<String, Object>) sourceRecord.value();
-        assertThat((List<String>) value.get("versions"), hasItems("v0.12", "v0.14"));
-        assertEquals(value.get("version"), version);
+        Struct value = (Struct) sourceRecord.value();
+        assertThat(value.getArray("versions"), hasItems("v0.12", "v0.14"));
+        assertEquals(value.getStruct("version").get("stable"), 0.12);
+        assertEquals(value.getStruct("version").get("unstable"), 0.14);
     }
 
     @Test
@@ -132,10 +138,10 @@ public class FluentdSourceTaskTest {
         List<SourceRecord> sourceRecords = task.poll();
         assertEquals(2, sourceRecords.size());
         assertNull(sourceRecords.get(0).valueSchema());
-        Map<String, Object> value1 = (Map<String, Object>) sourceRecords.get(0).value();
-        assertEquals("This is a test message1", value1.get("message"));
+        Struct value1 = (Struct) sourceRecords.get(0).value();
+        assertEquals("This is a test message1", value1.getString("message"));
         assertNull(sourceRecords.get(1).valueSchema());
-        Map<String, Object> value2 = (Map<String, Object>) sourceRecords.get(1).value();
-        assertEquals("This is a test message2", value2.get("message"));
+        Struct value2 = (Struct) sourceRecords.get(1).value();
+        assertEquals("This is a test message2", value2.getString("message"));
     }
 }

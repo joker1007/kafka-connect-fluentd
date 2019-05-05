@@ -22,6 +22,7 @@ public class MessagePackConverterTest {
     public void simpleKeyValue() {
         Map<String, String> map = new HashMap<>();
         map.put(FluentdSourceConnectorConfig.FLUENTD_SCHEMAS_ENABLE, "true");
+        map.put(FluentdSourceConnectorConfig.KAFKA_TAG_AS_PARTITION_KEY, "true");
         FluentdSourceConnectorConfig config = new FluentdSourceConnectorConfig(map);
         EventEntry eventEntry = EventEntry.of(
                 Instant.now(),
@@ -43,9 +44,62 @@ public class MessagePackConverterTest {
     }
 
     @Test
+    public void simpleKeyValueWithPartitionKeyField() {
+        Map<String, String> map = new HashMap<>();
+        map.put(FluentdSourceConnectorConfig.FLUENTD_SCHEMAS_ENABLE, "true");
+        map.put(FluentdSourceConnectorConfig.KAFKA_PARTITION_KEY_FIELD, "flag");
+        FluentdSourceConnectorConfig config = new FluentdSourceConnectorConfig(map);
+        EventEntry eventEntry = EventEntry.of(
+                Instant.now(),
+                ValueFactory.newMap(
+                        ValueFactory.newString("message"),
+                        ValueFactory.newString("This is a message."),
+                        ValueFactory.newString("flag"),
+                        ValueFactory.newBoolean(true)));
+
+        MessagePackConverter converter = new MessagePackConverter(config);
+        SourceRecord sourceRecord = converter.convert("topic", "tag", 0L, eventEntry);
+
+        assertEquals(Schema.BOOLEAN_SCHEMA, sourceRecord.keySchema());
+        assertEquals(true, sourceRecord.key());
+        assertEquals("topic", sourceRecord.valueSchema().name());
+        Struct struct = (Struct) sourceRecord.value();
+        assertEquals("This is a message.", struct.get("message"));
+        assertTrue(struct.getBoolean("flag"));
+    }
+
+    @Test
+    public void simpleKeyValueWithTopicField() {
+        Map<String, String> map = new HashMap<>();
+        map.put(FluentdSourceConnectorConfig.FLUENTD_SCHEMAS_ENABLE, "true");
+        map.put(FluentdSourceConnectorConfig.KAFKA_TOPIC_FIELD, "topic");
+        FluentdSourceConnectorConfig config = new FluentdSourceConnectorConfig(map);
+        EventEntry eventEntry = EventEntry.of(
+                Instant.now(),
+                ValueFactory.newMap(
+                        ValueFactory.newString("message"),
+                        ValueFactory.newString("This is a message."),
+                        ValueFactory.newString("flag"),
+                        ValueFactory.newBoolean(true),
+                        ValueFactory.newString("topic"),
+                        ValueFactory.newString("topicName")));
+
+        MessagePackConverter converter = new MessagePackConverter(config);
+        SourceRecord sourceRecord = converter.convert("topic", "tag", 0L, eventEntry);
+
+        assertNull(sourceRecord.keySchema());
+        assertNull(sourceRecord.key());
+        assertEquals("topicName", sourceRecord.topic());
+        Struct struct = (Struct) sourceRecord.value();
+        assertEquals("This is a message.", struct.get("message"));
+        assertTrue(struct.getBoolean("flag"));
+    }
+
+    @Test
     public void nullValue() {
         Map<String, String> map = new HashMap<>();
         map.put(FluentdSourceConnectorConfig.FLUENTD_SCHEMAS_ENABLE, "true");
+        map.put(FluentdSourceConnectorConfig.KAFKA_TAG_AS_PARTITION_KEY, "true");
         FluentdSourceConnectorConfig config = new FluentdSourceConnectorConfig(map);
         EventEntry eventEntry = EventEntry.of(
                 Instant.now(),
@@ -67,6 +121,7 @@ public class MessagePackConverterTest {
     public void nestedMap() {
         Map<String, String> map = new HashMap<>();
         map.put(FluentdSourceConnectorConfig.FLUENTD_SCHEMAS_ENABLE, "true");
+        map.put(FluentdSourceConnectorConfig.KAFKA_TAG_AS_PARTITION_KEY, "true");
         FluentdSourceConnectorConfig config = new FluentdSourceConnectorConfig(map);
         EventEntry eventEntry = EventEntry.of(
                 Instant.now(),
@@ -96,6 +151,7 @@ public class MessagePackConverterTest {
     public void nestedArray() {
         Map<String, String> map = new HashMap<>();
         map.put(FluentdSourceConnectorConfig.FLUENTD_SCHEMAS_ENABLE, "true");
+        map.put(FluentdSourceConnectorConfig.KAFKA_TAG_AS_PARTITION_KEY, "true");
         FluentdSourceConnectorConfig config = new FluentdSourceConnectorConfig(map);
         EventEntry eventEntry = EventEntry.of(
                 Instant.now(),
@@ -138,7 +194,7 @@ public class MessagePackConverterTest {
         Assert.assertNull(sourceRecord.keySchema());
         Assert.assertNull(sourceRecord.key());
         Assert.assertNull(sourceRecord.valueSchema());
-        Map<String, Object> value = (Map<String, Object>) sourceRecord.value();
-        Assert.assertEquals("This is a message.", value.get("message"));
+        Struct value = (Struct) sourceRecord.value();
+        Assert.assertEquals("This is a message.", value.getString("message"));
     }
 }

@@ -15,20 +15,22 @@
  **/
 package org.fluentd.kafka;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import influent.EventEntry;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaAndValue;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
+import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.msgpack.value.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
 import java.time.Instant;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 public class MessagePackConverter {
     static final Logger log = LoggerFactory.getLogger(MessagePackConverter.class);
@@ -39,42 +41,58 @@ public class MessagePackConverter {
     }
 
     public SourceRecord convert(String topic, String tag, Long timestamp, EventEntry entry) {
-        if (config.isFluentdSchemasEnable()) {
-            SchemaAndValue schemaAndValue = convert(topic, entry);
-            return new SourceRecord(
-                    null,
-                    null,
-                    topic,
-                    null,
-                    Schema.STRING_SCHEMA,
-                    tag,
-                    schemaAndValue.schema(),
-                    schemaAndValue.value(),
-                    timestamp
-            );
-        } else {
-            Object record;
-            try {
-                record = new ObjectMapper().readValue(entry.getRecord().toJson(), LinkedHashMap.class);
-            } catch (IOException e) {
-                record = entry.getRecord().toJson();
-            }
-            return new SourceRecord(
-                    null,
-                    null,
-                    topic,
-                    null,
-                    null,
-                    null,
-                    null,
-                    record,
-                    timestamp
-            );
+        SchemaAndValue schemaAndValue = convert(topic, entry);
+        SchemaAndValue keySchemaAndValue = getKey(schemaAndValue);
+        if (keySchemaAndValue.value() == null && config.isFluentdTagAsPartitionKey()) {
+            keySchemaAndValue = new SchemaAndValue(Schema.STRING_SCHEMA, tag);
         }
+        return new SourceRecord(
+                null,
+                null,
+                getTopic(schemaAndValue, topic),
+                null,
+                config.isFluentdSchemasEnable() ? keySchemaAndValue.schema() : null,
+                keySchemaAndValue.value(),
+                config.isFluentdSchemasEnable() ? schemaAndValue.schema() : null,
+                schemaAndValue.value(),
+                timestamp);
     }
 
-    public SourceRecord convert(String topic, String tag, Instant timestamp, EventEntry entry) {
-        return convert(topic, tag, timestamp.toEpochMilli(), entry);
+    private String getTopic(SchemaAndValue schemaAndValue, String topic) {
+        if (schemaAndValue.schema().type() != Schema.Type.STRUCT) {
+            return topic;
+        }
+
+        Struct record = (Struct)schemaAndValue.value();
+        if (config.getFluentdTopicField() != null) {
+            try {
+                String topicValue = record.getString(config.getFluentdTopicField());
+                if (topicValue != null) {
+                    return topicValue;
+                }
+            } catch (DataException ignored) {
+            }
+        }
+        return topic;
+    }
+
+    private SchemaAndValue getKey(SchemaAndValue schemaAndValue) {
+        if (config.getFluentdPartitionKeyField() == null) {
+            return SchemaAndValue.NULL;
+        }
+
+        if (schemaAndValue.schema().type() != Schema.Type.STRUCT) {
+            return SchemaAndValue.NULL;
+        }
+
+        Struct record = (Struct)schemaAndValue.value();
+        try {
+            Schema keyFieldSchema = record.schema().field(config.getFluentdPartitionKeyField()).schema();
+            Object keyValue = record.get(config.getFluentdPartitionKeyField());
+            return new SchemaAndValue(keyFieldSchema, keyValue);
+        } catch (DataException ignored) {
+            return SchemaAndValue.NULL;
+        }
     }
 
     private SchemaAndValue convert(String topic, EventEntry entry) {

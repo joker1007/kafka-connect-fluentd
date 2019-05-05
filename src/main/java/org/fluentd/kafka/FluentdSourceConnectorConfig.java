@@ -18,8 +18,8 @@ package org.fluentd.kafka;
 
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
-import org.apache.kafka.common.config.ConfigDef.Type;
 import org.apache.kafka.common.config.ConfigDef.Importance;
+import org.apache.kafka.common.config.ConfigDef.Type;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -27,7 +27,6 @@ import java.net.SocketAddress;
 import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 
 public class FluentdSourceConnectorConfig extends AbstractConfig {
@@ -49,6 +48,9 @@ public class FluentdSourceConnectorConfig extends AbstractConfig {
     public static final String FLUENTD_KEY_PASSWORD = "fluentd.key.password";
 
     public static final String KAFKA_TOPIC = "kafka.topic";
+    public static final String KAFKA_TOPIC_FIELD = "kafka.topic_field";
+    public static final String KAFKA_PARTITION_KEY_FIELD = "kafka.partition_key_field";
+    public static final String KAFKA_TAG_AS_PARTITION_KEY = "kafka.tag_as_partition_key";
     public static final String FLUENTD_SCHEMAS_ENABLE = "fluentd.schemas.enable";
     public static final String FLUENTD_SCHEMAS_MAP_FIELD = "fluentd.schemas.map_field";
     public static final String FLUENTD_COUNTER_ENABLED = "fluentd.counter.enabled";
@@ -93,6 +95,12 @@ public class FluentdSourceConnectorConfig extends AbstractConfig {
                         "Password for key")
                 .define(KAFKA_TOPIC, Type.STRING, null, Importance.MEDIUM,
                         "Topic for Kafka. null means using Fluentd's tag for topic dynamically. Default: null")
+                .define(KAFKA_TOPIC_FIELD, Type.STRING, null, Importance.MEDIUM,
+                        "Treat this field as topic. null means using Fluentd's tag for topic dynamically. This config takes precedence over '" + KAFKA_TOPIC + "'. Default: null")
+                .define(KAFKA_PARTITION_KEY_FIELD, Type.STRING, null, Importance.MEDIUM,
+                        "Use this field as partition key. null means random partitioning. This config takes precedence over ' " + KAFKA_TAG_AS_PARTITION_KEY + "'. Default: false")
+                .define(KAFKA_TAG_AS_PARTITION_KEY, Type.BOOLEAN, false, Importance.MEDIUM,
+                        "Use tag as partition key. null means random partitioning. Default: null")
                 .define(FLUENTD_SCHEMAS_ENABLE, Type.BOOLEAN, true, Importance.MEDIUM,
                         "Enable schemas for messages. Default: true")
                 .define(FLUENTD_SCHEMAS_MAP_FIELD, Type.LIST, null, Importance.MEDIUM,
@@ -167,6 +175,18 @@ public class FluentdSourceConnectorConfig extends AbstractConfig {
 
     public String getFluentdStaticTopic() {
         return getString(KAFKA_TOPIC);
+    }
+
+    public String getFluentdTopicField() {
+        return getString(KAFKA_TOPIC_FIELD);
+    }
+
+    public String getFluentdPartitionKeyField() {
+        return getString(KAFKA_PARTITION_KEY_FIELD);
+    }
+
+    public boolean isFluentdTagAsPartitionKey() {
+        return getBoolean(KAFKA_TAG_AS_PARTITION_KEY);
     }
 
     public boolean isFluentdSchemasEnable() {
